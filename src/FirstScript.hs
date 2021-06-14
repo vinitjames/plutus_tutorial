@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE NoImplicitPrelude   #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TypeApplications    #-}
@@ -20,6 +21,7 @@ import           PlutusTx.Prelude    hiding (Semigroup(..), unless)
 import           Ledger              hiding (singleton)
 import           Ledger.Constraints  as Constraints
 import qualified Ledger.Scripts      as Scripts
+import qualified Ledger.Typed.Scripts      as Scripts
 import           Ledger.Ada          as Ada
 import           Playground.Contract (printJson, printSchemas, ensureKnownCurrencies, stage)
 import           Playground.TH       (mkKnownCurrencies, mkSchemaDefinitions)
@@ -27,12 +29,31 @@ import           Playground.Types    (KnownCurrency (..))
 import           Prelude             (Semigroup (..))
 import           Text.Printf         (printf)
 
+
+newtype CustomRedeemer = CustomRedeemer Integer
+    deriving Show
+
+PlutusTx.unstableMakeIsData ''CustomRedeemer
+
+
 {-# INLINABLE mkValidator #-}
-mkValidator :: Data -> Data -> Data -> ()
-mkValidator _ _ _ = ()
+mkValidator :: () -> CustomRedeemer -> ValidatorCtx -> Bool
+mkValidator () r _ = traceIfFalse "Wrong Redeemer" $ r == 2405
+
+data Typed
+instance Scripts.ScriptType Typed where
+    type instance DatumType Typed = ()
+    type instance RedeemerType Typed = CustomRedeemer
+
+typedValidator :: Scripts.ScriptInstance Typed
+typedValidator = Scripts.validator @Typed
+    $$(PlutusTx.compile [|| mkValidator ||])
+    $$(PlutusTx.compile [|| wrap ||])
+  where
+    wrap = Scripts.wrapValidator @() @CustomRedeemer
 
 validator :: Validator
-validator = mkValidatorScript $$(PlutusTx.compile [|| mkValidator ||])
+validator = Scripts.validatorScript typedValidator
 
 valHash :: Ledger.ValidatorHash
 valHash = Scripts.validatorHash validator
@@ -44,7 +65,7 @@ scrAddress = ScriptAddress valHash
 type FirstSchema =
     BlockchainActions
         .\/ Endpoint "give" Integer
-        .\/ Endpoint "grab" ()
+        .\/ Endpoint "grab" Integer
 
 give :: (HasBlockchainActions s, AsContractError e) => Integer -> Contract w s e ()
 give amount = do
@@ -53,14 +74,14 @@ give amount = do
     void $ awaitTxConfirmed $ txId ledgerTx
     logInfo @String $ printf "made a gift of %d lovelace" amount
 
-grab :: forall w s e. (HasBlockchainActions s, AsContractError e) => Contract w s e ()
-grab = do
+grab :: forall w s e. (HasBlockchainActions s, AsContractError e) => Integer -> Contract w s e ()
+grab r = do
     utxos <- utxoAt scrAddress
     let orefs   = fst <$> Map.toList utxos
         lookups = Constraints.unspentOutputs utxos      <>
                   Constraints.otherScript validator
         tx :: TxConstraints Void Void
-        tx      = mconcat [mustSpendScriptOutput oref $ Redeemer $ I 17 | oref <- orefs]
+        tx      = mconcat [mustSpendScriptOutput oref $ Redeemer $ PlutusTx.toData $ CustomRedeemer r | oref <- orefs]
     ledgerTx <- submitTxConstraintsWith @Void lookups tx
     void $ awaitTxConfirmed $ txId ledgerTx
     logInfo @String $ "collected gifts"
@@ -69,7 +90,7 @@ endpoints :: Contract () FirstSchema Text ()
 endpoints = (give' `select` grab') >> endpoints
   where
     give' = endpoint @"give" >>= give
-    grab' = endpoint @"grab" >>  grab
+    grab' = endpoint @"grab" >>=  grab
 
 mkSchemaDefinitions ''FirstSchema
 
