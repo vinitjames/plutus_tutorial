@@ -1,6 +1,6 @@
 Cabal-Version:      2.4
-Name:               first-script
-Version:            0.1.0.0
+Name:               simple-redeemer
+Version:            0.1.0
 Author:              Vinit James
 Maintainer:          vinit.james24@gmail.com
 Build-Type:          Simple
@@ -10,7 +10,9 @@ License-files:       LICENSE
 
 library
   hs-source-dirs:      src
-  exposed-modules:     FirstScript
+  exposed-modules:     CustomRedeemerScript
+                     , BoolPairRedeemerScript
+                     , CustomBoolPairRedeemerScript
   
   build-depends:       aeson
                      , base ^>=4.14.1.0

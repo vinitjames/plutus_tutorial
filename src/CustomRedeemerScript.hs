@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 
-module FirstScript where
+module CustomRedeemerScript where
 
 import           Control.Monad       hiding (fmap)
 import           Data.Map            as Map
@@ -31,14 +31,14 @@ import           Text.Printf         (printf)
 
 
 newtype CustomRedeemer = CustomRedeemer Integer
-    deriving Show
+    deriving (Show)
 
 PlutusTx.unstableMakeIsData ''CustomRedeemer
 
 
 {-# INLINABLE mkValidator #-}
 mkValidator :: () -> CustomRedeemer -> ValidatorCtx -> Bool
-mkValidator () r _ = traceIfFalse "Wrong Redeemer" $ r == 2405
+mkValidator () (CustomRedeemer r) _ = traceIfFalse "Wrong Redeemer" $ r == 2405
 
 data Typed
 instance Scripts.ScriptType Typed where

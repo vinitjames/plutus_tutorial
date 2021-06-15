@@ -1,4 +1,4 @@
 cradle:
   cabal:
     - path: "./src"
-      component: "lib:plutus-pioneer-program-week02"
+      component: "lib:simple_redeemer"
