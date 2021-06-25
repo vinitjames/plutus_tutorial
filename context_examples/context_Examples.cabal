@@ -10,7 +10,8 @@ License-files:       LICENSE
 
 library
   hs-source-dirs:      src
-  exposed-modules:     BoolPairRedeemerScript
+  exposed-modules:     Vesting
+                       ParameterizedVesting
   
   build-depends:       aeson
                      , base ^>=4.14.1.0
